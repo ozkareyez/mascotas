@@ -6,8 +6,8 @@ import { ProtectedRoute } from './components/shared/ProtectedRoute'
 import { LoadingScreen } from './components/shared/LoadingScreen'
 import { LoginPage } from './pages/LoginPage'
 
-const OperarioPage = lazy(() => import('./pages/OperarioPage').then(m => ({ default: m.OperarioPage })))
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })))
+const OperarioPage = lazy(() => import('./pages/OperarioPage').then(m => ({ default: m.OperarioPage })))
 
 function AppRoutes() {
   const { inicializar, cargando } = useAuthStore()

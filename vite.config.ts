@@ -57,6 +57,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
+          xlsx: ['xlsx'],
+          exceljs: ['exceljs'],
           vendor: ['react', 'react-dom', 'react-router-dom'],
           supabase: ['@supabase/supabase-js'],
         },
