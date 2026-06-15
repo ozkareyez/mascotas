@@ -7,16 +7,31 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-192.png', 'icon-512.png'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            urlPattern: /^https?:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-api',
+              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+            },
+          },
+        ],
+      },
       manifest: {
-        name: 'SepedoCRM',
-        short_name: 'Sepedo',
+        name: 'MascotasCRM',
+        short_name: 'Mascotas',
         description: 'Sistema de separación de pedidos para bodega',
-        theme_color: '#1E56A0',
-        background_color: '#F5F6FA',
+        theme_color: '#E86A33',
+        background_color: '#F8F6F3',
         display: 'standalone',
-        orientation: 'portrait-primary',
+        scope: '/',
         start_url: '/',
+        orientation: 'portrait-primary',
         icons: [
           {
             src: 'icon-192.png',
@@ -36,27 +51,12 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
-            },
-          },
-        ],
-      },
     }),
   ],
   build: {
     rollupOptions: {
       output: {
         manualChunks: {
-          xlsx: ['xlsx'],
-          exceljs: ['exceljs'],
           vendor: ['react', 'react-dom', 'react-router-dom'],
           supabase: ['@supabase/supabase-js'],
         },
