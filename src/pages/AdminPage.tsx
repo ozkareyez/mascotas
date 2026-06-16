@@ -13,6 +13,7 @@ import { ProgressBar } from '../components/ui/ProgressBar'
 import { MetricasGrid } from '../components/admin/MetricasGrid'
 import { LoadingScreen } from '../components/shared/LoadingScreen'
 import { parsearExcelPedido, exportarReporteExcel, exportarReporteGlobal } from '../utils/excel'
+import { extraerFechaLocal } from '../utils/dateUtils'
 import { supabase } from '../lib/supabase'
 import { toast } from 'sonner'
 import type { ResumenPedido, GrupoPedidoImportado, Usuario } from '../types'
@@ -48,10 +49,13 @@ export function AdminPage() {
     })
   }, [])
 
-  // Filtrar pedidos por fecha (client-side)
+  // Filtrar pedidos por fecha (client-side, local timezone)
   const pedidosFiltrados = useMemo(() => {
     if (!fechaFiltro) return pedidos
-    return pedidos.filter(p => p.creado_en?.startsWith(fechaFiltro))
+    return pedidos.filter(p => {
+      if (!p.creado_en) return false
+      return extraerFechaLocal(p.creado_en) === fechaFiltro
+    })
   }, [pedidos, fechaFiltro])
 
   const handleArchivo = async (archivo: File) => {

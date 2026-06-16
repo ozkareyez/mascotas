@@ -6,6 +6,50 @@ import { ProtectedRoute } from './components/shared/ProtectedRoute'
 import { LoadingScreen } from './components/shared/LoadingScreen'
 import { LoginPage } from './pages/LoginPage'
 
+function ServiceWorkerManager() {
+  useEffect(() => {
+    let refrescando = false
+    const manejarActualizacion = () => {
+      if (refrescando) return
+      refrescando = true
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (reg && reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+            window.location.reload()
+          }
+        })
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg) {
+          reg.addEventListener('updatefound', () => {
+            const nuevoSW = reg.installing
+            if (nuevoSW) {
+              nuevoSW.addEventListener('statechange', () => {
+                if (nuevoSW.state === 'installed' && navigator.serviceWorker.controller) {
+                  manejarActualizacion()
+                }
+              })
+            }
+          })
+        }
+      })
+
+      let recarga = false
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (recarga) return
+        recarga = true
+        window.location.reload()
+      })
+    }
+  }, [])
+
+  return null
+}
+
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })))
 const OperarioPage = lazy(() => import('./pages/OperarioPage').then(m => ({ default: m.OperarioPage })))
 
@@ -49,6 +93,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ServiceWorkerManager />
       <Toaster
         position="top-center"
         toastOptions={{

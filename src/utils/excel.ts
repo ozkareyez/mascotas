@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
+import { extraerFechaLocal } from './dateUtils'
 import type { ItemImportado, ResumenPedido, ItemPedido, Pedido, GrupoPedidoImportado, Usuario } from '../types'
 
 export interface ResultadoParseo {
@@ -216,7 +217,7 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
     { prop: 'Tiempo Total (min)', val: pedido.tiempo_total_seg > 0 ? Math.floor(pedido.tiempo_total_seg / 60) + 'm ' + (pedido.tiempo_total_seg % 60) + 's' : '—' },
     { prop: 'Diferencia Total', val: pedido.total_diferencia },
     { prop: 'Ítems con Diferencia', val: pedido.items_con_diferencia },
-    { prop: 'Creado', val: pedido.creado_en ? new Date(pedido.creado_en).toLocaleString('es-CL') : '—' },
+    { prop: 'Creado', val: pedido.creado_en ? extraerFechaLocal(pedido.creado_en) : '—' },
     { prop: 'Iniciado', val: pedido.iniciado_en ? new Date(pedido.iniciado_en).toLocaleString('es-CL') : '—' },
     { prop: 'Finalizado', val: pedido.finalizado_en ? new Date(pedido.finalizado_en).toLocaleString('es-CL') : '—' },
   ])
@@ -338,7 +339,7 @@ export async function exportarReporteGlobal(pedidos: Pedido[], operarios: Usuari
   for (const p of ordenados) {
     const operarioNombre = operarios.find(o => o.id === p.operario_id)?.nombre ?? '—'
     hoja.addRow({
-      fecha: p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-CL') : '—',
+      fecha: p.creado_en ? extraerFechaLocal(p.creado_en) : '—',
       plc: p.crm_ref,
       skus: p.total_skus,
       peso: p.peso_total_kg,
