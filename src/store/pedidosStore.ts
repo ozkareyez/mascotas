@@ -118,7 +118,7 @@ export const usePedidosStore = create<PedidosState>((set, get) => ({
     if (existente) throw new Error(`El pedido ${crmRef} ya existe`)
 
     const totalSku = itemsImport.length
-    const pesoTotal = 0
+    const pesoTotal = itemsImport.reduce((acc, item) => acc + (item.peso_kg ?? 0), 0)
 
     const { data: pedido, error: errPedido } = await supabase
       .from('pedidos')
@@ -141,7 +141,7 @@ export const usePedidosStore = create<PedidosState>((set, get) => ({
       sku: item.sku,
       descripcion: item.descripcion,
       cantidad_esperada: item.cantidad_esperada,
-      peso_kg: 0,
+      peso_kg: item.peso_kg ?? 0,
       orden: i,
     }))
 

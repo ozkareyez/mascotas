@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { usePedidosStore } from '../store/pedidosStore'
 import { Navbar } from '../components/shared/Navbar'
 import { Card } from '../components/ui/Card'
@@ -12,7 +12,7 @@ import { ResumenPedido as ResumenPedidoComponent } from '../components/admin/Res
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { MetricasGrid } from '../components/admin/MetricasGrid'
 import { LoadingScreen } from '../components/shared/LoadingScreen'
-import { parsearExcelPedido, exportarReporteExcel } from '../utils/excel'
+import { parsearExcelPedido, exportarReporteExcel, exportarReporteGlobal } from '../utils/excel'
 import { supabase } from '../lib/supabase'
 import { toast } from 'sonner'
 import type { ResumenPedido, GrupoPedidoImportado, Usuario } from '../types'
@@ -27,6 +27,7 @@ export function AdminPage() {
   const [progresoTotal, setProgresoTotal] = useState(0)
   const [pedidoResumen, setPedidoResumen] = useState<ResumenPedido | null>(null)
   const [operarios, setOperarios] = useState<Usuario[]>([])
+  const [fechaFiltro, setFechaFiltro] = useState('')
 
   const recargar = useCallback(() => {
     cargarPedidos()
@@ -47,6 +48,12 @@ export function AdminPage() {
     })
   }, [])
 
+  // Filtrar pedidos por fecha (client-side)
+  const pedidosFiltrados = useMemo(() => {
+    if (!fechaFiltro) return pedidos
+    return pedidos.filter(p => p.creado_en?.startsWith(fechaFiltro))
+  }, [pedidos, fechaFiltro])
+
   const handleArchivo = async (archivo: File) => {
     try {
       const resultado = await parsearExcelPedido(archivo)
@@ -56,11 +63,10 @@ export function AdminPage() {
       const totalItems = resultado.items.length
       const totalGrupos = resultado.grupos.length
       const msg = `${totalItems} ítems en ${totalGrupos} pedido${totalGrupos > 1 ? 's' : ''}`
-      if (cols.documento !== '—') {
-        toast.success(`${msg} (${cols.sku} | ${cols.cantidad} | Doc: ${cols.documento})`, { duration: 6000 })
-      } else {
-        toast.success(`${msg} (${cols.sku} | ${cols.cantidad})`, { duration: 5000 })
-      }
+      const colsMsg = [`SKU: ${cols.sku}`, `Cant: ${cols.cantidad}`]
+      if (cols.documento !== '—') colsMsg.push(`Doc: ${cols.documento}`)
+      if (cols.peso !== '—') colsMsg.push(`Peso: ${cols.peso}`)
+      toast.success(`${msg} (${colsMsg.join(' | ')})`, { duration: 6000 })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al leer archivo')
     }
@@ -118,6 +124,19 @@ export function AdminPage() {
     }
   }
 
+  const handleExportarTodo = async () => {
+    if (pedidosFiltrados.length === 0) {
+      toast.error('No hay pedidos para exportar')
+      return
+    }
+    try {
+      await exportarReporteGlobal(pedidosFiltrados, operarios)
+      toast.success('Reporte descargado')
+    } catch {
+      toast.error('Error al exportar')
+    }
+  }
+
   const handleAsignarOperario = async (pedidoId: string, operarioId: string) => {
     try {
       await asignarOperario(pedidoId, operarioId)
@@ -130,14 +149,14 @@ export function AdminPage() {
 
   const totalItemsImportados = gruposImportados.reduce((a, g) => a + g.items.length, 0)
 
-  // Métricas del dashboard
-  const totalPendientes = pedidos.filter(p => p.estado === 'pendiente').length
-  const totalEnProgreso = pedidos.filter(p => p.estado === 'en_progreso').length
-  const totalCompletados = pedidos.filter(p => p.estado === 'completado').length
-  const totalSkus = pedidos.reduce((a, p) => a + p.total_skus, 0)
+  // Métricas del dashboard (usando pedidosFiltrados)
+  const totalPendientes = pedidosFiltrados.filter(p => p.estado === 'pendiente').length
+  const totalEnProgreso = pedidosFiltrados.filter(p => p.estado === 'en_progreso').length
+  const totalCompletados = pedidosFiltrados.filter(p => p.estado === 'completado').length
+  const totalSkus = pedidosFiltrados.reduce((a, p) => a + p.total_skus, 0)
 
-  const pedidosPendientesOActivos = pedidos.filter(p => p.estado !== 'completado')
-  const pedidosFinalizados = pedidos.filter(p => p.estado === 'completado')
+  const pedidosPendientesOActivos = pedidosFiltrados.filter(p => p.estado !== 'completado')
+  const pedidosFinalizados = pedidosFiltrados.filter(p => p.estado === 'completado')
 
   return (
     <>
@@ -215,11 +234,34 @@ export function AdminPage() {
 
         {/* Dashboard */}
       <div className="page page-wide">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h1 style={{ fontSize: '22px', fontWeight: 800 }}>Dashboard</h1>
-          <Button onClick={() => { setGruposImportados([]); setVista('cargar') }}>
-            + Nuevo pedido
-          </Button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h1 style={{ fontSize: '22px', fontWeight: 800 }}>Dashboard</h1>
+            <input
+              type="date"
+              value={fechaFiltro}
+              onChange={(e) => setFechaFiltro(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                border: `1px solid var(--border)`,
+                borderRadius: 'var(--radius)',
+                fontSize: '14px',
+                color: 'var(--text)',
+                background: 'var(--white)',
+                outline: 'none',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {pedidosFiltrados.length > 0 && (
+              <Button variant="ghost" onClick={handleExportarTodo}>
+                Exportar todo
+              </Button>
+            )}
+            <Button onClick={() => { setGruposImportados([]); setVista('cargar') }}>
+              + Nuevo pedido
+            </Button>
+          </div>
         </div>
 
         {/* Métricas */}
@@ -268,10 +310,10 @@ export function AdminPage() {
           </div>
         )}
 
-        {!cargando && pedidos.length === 0 && (
+        {!cargando && pedidosFiltrados.length === 0 && (
           <Card style={{ textAlign: 'center', padding: 40, color: 'var(--text2)' }}>
             <div style={{ fontSize: '36px', marginBottom: 12 }}>📦</div>
-            <p>No hay pedidos aún. Sube un Excel para comenzar.</p>
+            <p>{fechaFiltro ? 'No hay pedidos para esta fecha.' : 'No hay pedidos aún. Sube un Excel para comenzar.'}</p>
             <Button
               variant="primary"
               onClick={() => { setGruposImportados([]); setVista('cargar') }}

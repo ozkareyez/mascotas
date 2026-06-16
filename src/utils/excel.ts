@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
-import type { ItemImportado, ResumenPedido, ItemPedido, GrupoPedidoImportado } from '../types'
+import type { ItemImportado, ResumenPedido, ItemPedido, Pedido, GrupoPedidoImportado, Usuario } from '../types'
 
 export interface ResultadoParseo {
   items: ItemImportado[]
@@ -98,6 +98,7 @@ export function parsearExcelPedido(archivo: File): Promise<ResultadoParseo> {
         const idxDesc = headerRow.findIndex(v => coincideCon(v, ['desc', 'nombre', 'producto', 'articulo', 'etiqueta']))
         const idxCant = headerRow.findIndex(v => coincideCon(v, ['cant', 'qty', 'quantity', 'unidad', 'suma']))
         const idxDoc = headerRow.findIndex(v => coincideCon(v, ['documento', 'nrodocumento', 'nro documento', 'planilla']))
+        const idxPeso = headerRow.findIndex(v => coincideCon(v, ['peso', 'kg', 'pesokg', 'weight', 'kilo']))
 
         const idxSku = idxItem >= 0 ? idxItem : idxDesc
 
@@ -106,6 +107,7 @@ export function parsearExcelPedido(archivo: File): Promise<ResultadoParseo> {
           descripcion: headerRow[idxDesc] ?? '—',
           cantidad: headerRow[idxCant] ?? '—',
           documento: idxDoc >= 0 ? headerRow[idxDoc] ?? '—' : '—',
+          peso: idxPeso >= 0 ? headerRow[idxPeso] ?? '—' : '—',
         }
 
         // Parsear datos
@@ -117,13 +119,21 @@ export function parsearExcelPedido(archivo: File): Promise<ResultadoParseo> {
           const valorCant = aTexto(row[idxCant]).replace(',', '.')
           const cantidadEsperada = Number(valorCant) || 0
           const docRef = idxDoc >= 0 ? aTexto(row[idxDoc]) : ''
+          const valorPeso = idxPeso >= 0 ? aTexto(row[idxPeso]).replace(',', '.') : ''
+          const pesoKg = Number(valorPeso) || 0
 
           if (itemLabel === '' || cantidadEsperada <= 0) continue
           if (/^(total|subtotal|gran\s*total|∑)/i.test(itemLabel)) continue
 
           const sku = itemLabel
           const descripcion = descLabel || itemLabel
-          items.push({ sku, descripcion, cantidad_esperada: cantidadEsperada, documentoRef: docRef || undefined })
+          items.push({
+            sku,
+            descripcion,
+            cantidad_esperada: cantidadEsperada,
+            peso_kg: pesoKg || undefined,
+            documentoRef: docRef || undefined,
+          })
         }
 
         if (items.length === 0) {
@@ -165,6 +175,9 @@ function agruparPorDocumento(items: ItemImportado[]): GrupoPedidoImportado[] {
       const existente = mapaSku.get(item.sku)
       if (existente) {
         existente.cantidad_esperada += item.cantidad_esperada
+        if (item.peso_kg != null) {
+          existente.peso_kg = (existente.peso_kg ?? 0) + item.peso_kg
+        }
       } else {
         mapaSku.set(item.sku, { ...item })
       }
@@ -212,7 +225,7 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
   hojaResumen.getRow(1).fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FF1E56A0' },
+    fgColor: { argb: 'FFE86A33' },
   }
   hojaResumen.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
 
@@ -224,6 +237,7 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
     { header: 'Descripción', key: 'desc', width: 40 },
     { header: 'Esperado', key: 'esp', width: 12 },
     { header: 'Confirmado', key: 'conf', width: 12 },
+    { header: 'Peso (kg)', key: 'peso', width: 12 },
     { header: 'Diferencia', key: 'dif', width: 12 },
     { header: 'Estado', key: 'estado', width: 15 },
     { header: 'Observaciones', key: 'obs', width: 30 },
@@ -233,7 +247,7 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
   hojaDetalle.getRow(1).fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FF1E56A0' },
+    fgColor: { argb: 'FFE86A33' },
   }
 
   const pintarFila = (row: ExcelJS.Row, item: ItemPedido) => {
@@ -257,6 +271,7 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
       desc: item.descripcion,
       esp: item.cantidad_esperada,
       conf: confirmado,
+      peso: item.peso_kg,
       dif: diferencia,
       estado: item.estado,
       obs: item.observaciones,
@@ -271,12 +286,13 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
     desc: '',
     esp: pedido.items.reduce((a, i) => a + i.cantidad_esperada, 0),
     conf: pedido.items.reduce((a, i) => a + (i.cantidad_confirmada ?? 0), 0),
+    peso: pedido.items.reduce((a, i) => a + i.peso_kg, 0),
     dif: pedido.items.reduce((a, i) => a + ((i.cantidad_confirmada ?? 0) - i.cantidad_esperada), 0),
     estado: '',
     obs: '',
   })
   filaTotal.font = { bold: true }
-  filaTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F6FA' } }
+  filaTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8F6F3' } }
 
   const buffer = await workbook.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
@@ -284,6 +300,65 @@ export async function exportarReporteExcel(pedido: ResumenPedido): Promise<void>
   const a = document.createElement('a')
   a.href = url
   a.download = `${pedido.crm_ref}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export async function exportarReporteGlobal(pedidos: Pedido[], operarios: Usuario[]): Promise<void> {
+  const workbook = new ExcelJS.Workbook()
+  workbook.creator = 'MascotasCRM'
+  workbook.created = new Date()
+
+  const hoja = workbook.addWorksheet('Pedidos')
+
+  hoja.columns = [
+    { header: 'Fecha', key: 'fecha', width: 14 },
+    { header: 'N° PLC', key: 'plc', width: 20 },
+    { header: 'Cant. SKUs', key: 'skus', width: 14 },
+    { header: 'Peso (kg)', key: 'peso', width: 14 },
+    { header: 'Tiempo', key: 'tiempo', width: 14 },
+    { header: 'Operario', key: 'operario', width: 20 },
+    { header: 'Estado', key: 'estado', width: 16 },
+  ]
+
+  const headerRow = hoja.getRow(1)
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE86A33' },
+  }
+
+  const ordenados = [...pedidos].sort((a, b) =>
+    (a.creado_en ?? '').localeCompare(b.creado_en ?? '')
+  )
+
+  for (const p of ordenados) {
+    const operarioNombre = operarios.find(o => o.id === p.operario_id)?.nombre ?? '—'
+    hoja.addRow({
+      fecha: p.creado_en ? new Date(p.creado_en).toLocaleDateString('es-CL') : '—',
+      plc: p.crm_ref,
+      skus: p.total_skus,
+      peso: p.peso_total_kg,
+      tiempo: p.tiempo_total_seg > 0
+        ? Math.floor(p.tiempo_total_seg / 60) + 'm ' + (p.tiempo_total_seg % 60) + 's'
+        : '—',
+      operario: operarioNombre,
+      estado: p.estado === 'completado' ? 'Completado'
+        : p.estado === 'en_progreso' ? 'En progreso'
+        : 'Pendiente',
+    })
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const hoy = new Date().toISOString().slice(0, 10)
+  a.download = `MascotasCRM_${hoy}.xlsx`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)

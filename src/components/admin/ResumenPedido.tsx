@@ -58,6 +58,7 @@ export function ResumenPedido({ resumen, onExportar, onCerrar }: ResumenPedidoPr
               <th style={{ textAlign: 'left', padding: '8px', color: 'var(--text2)', fontWeight: 600 }}>Descripción</th>
               <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text2)', fontWeight: 600 }}>Esperado</th>
               <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text2)', fontWeight: 600 }}>Confirmado</th>
+              <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text2)', fontWeight: 600 }}>Peso (kg)</th>
               <th style={{ textAlign: 'right', padding: '8px', color: 'var(--text2)', fontWeight: 600 }}>Diff</th>
               <th style={{ textAlign: 'center', padding: '8px', color: 'var(--text2)', fontWeight: 600 }}>Estado</th>
             </tr>
@@ -78,6 +79,7 @@ export function ResumenPedido({ resumen, onExportar, onCerrar }: ResumenPedidoPr
                   </td>
                   <td style={{ padding: '8px', textAlign: 'right' }}>{item.cantidad_esperada}</td>
                   <td style={{ padding: '8px', textAlign: 'right' }}>{item.cantidad_confirmada ?? '—'}</td>
+                  <td style={{ padding: '8px', textAlign: 'right' }}>{item.peso_kg}</td>
                   <td style={{
                     padding: '8px', textAlign: 'right',
                     color: diff === 0 ? 'var(--green)' : diff > 0 ? 'var(--amber)' : 'var(--red)',
